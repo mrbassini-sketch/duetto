@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Duetto — Real-time piano lessons</title>
+
+<!-- PeerJS: WebRTC signaling via a free public broker server -->
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<!-- Tone.js: local piano synthesis (we render the remote player's notes on our own machine) -->
+<script src="https://unpkg.com/tone@14.8.49/build/Tone.js"></script>
+
+<style>
+  /* =========================================================
+     DESIGN SYSTEM
+     Every visual decision lives in these CSS variables.
+     As a designer, you can reskin the entire app from here.
+     ========================================================= */
+  :root {
+    /* Color palette — warm dark studio aesthetic */
+    --bg:            #0e0f13;
+    --bg-elevated:   #16181f;
+    --bg-card:       #1c1f28;
+    --border:        #2a2e3a;
+    --text:          #e8eaf0;
+    --text-muted:    #8d93a3;
+    --text-faint:    #5a6072;
+
+    /* Brand colors — "you" vs "them" so the duet feels alive */
+    --you:           #4cc9f0;   /* cool cyan — your notes */
+    --them:          #f72585;   /* warm magenta — instructor's notes */
+    --accent:        #ffb703;   /* signal / alerts / focus */
+    --ok:            #06d6a0;
+    --warn:          #ffb703;
+    --bad:           #ef476f;
+
+    /* Type */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+
+    /* Spacing scale */
+    --s1: 4px;
+    --s2: 8px;
+    --s3: 12px;
+    --s4: 16px;
+    --s5: 24px;
+    --s6: 32px;
+    --s7: 48px;
+
+    /* Radii & shadows */
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 16px;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+    --shadow-md: 0 8px 24px rgba(0,0,0,0.4);
+    --shadow-glow-you:  0 0 24px rgba(76, 201, 240, 0.4);
+    --shadow-glow-them: 0 0 24px rgba(247, 37, 133, 0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    overflow: hidden;
+  }
+
+  /* =========================================================
+     LAYOUT
+     ========================================================= */
+  .app {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ---- Header / connection bar ---- */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--s3) var(--s5);
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    gap: var(--s5);
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    font-weight: 600;
+    font-size: 16px;
+    letter-spacing: -0.02em;
+  }
+  .brand-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, var(--you), var(--them));
+  }
+
+  .connection {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    flex: 1;
+    justify-content: center;
+  }
+  .id-badge {
+    font-family: var(--font-mono);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: var(--s2) var(--s3);
+    border-radius: var(--r-sm);
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .id-badge:hover { color: var(--text); border-color: var(--text-faint); }
+  .id-badge strong { color: var(--text); font-weight: 600; margin-left: var(--s2); }
+
+  .connect-form {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+  }
+  .connect-form input {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: var(--s2) var(--s3);
+    border-radius: var(--r-sm);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    width: 220px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .connect-form input:focus { border-color: var(--you); }
+
+  button {
+    background: var(--text);
+    color: var(--bg);
+    border: 0;
+    padding: var(--s2) var(--s4);
+    border-radius: var(--r-sm);
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  button:hover { transform: translateY(-1px); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  button.ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+  button.ghost:hover { color: var(--text); border-color: var(--text-faint); }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    padding: var(--s1) var(--s3);
+    background: var(--bg-card);
+    border-radius: 100px;
+    border: 1px solid var(--border);
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-faint);
+    transition: background 0.2s;
+  }
+  .dot.ok   { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .dot.warn { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+  .dot.bad  { background: var(--bad); }
+
+  /* ---- Main stage: holds two player columns ---- */
+  .stage {
+    position: relative;
+    display: grid;
+    gap: var(--s4);
+    padding: var(--s4);
+    background: var(--bg);
+    overflow: hidden;
+    transition: grid-template-columns 0.35s ease;
+  }
+  .stage[data-layout="equal"] {
+    grid-template-columns: 1fr 1fr;
+  }
+  .stage[data-layout="featured-you"],
+  .stage[data-layout="featured-them"] {
+    grid-template-columns: 1fr;
+  }
+
+  /* A "column" = one player's video tile + their keyboard, stacked */
+  .column {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s3);
+    min-height: 0; /* allow flex children to shrink */
+    transition: all 0.35s ease;
+  }
+
+  .tile {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.35s ease;
+  }
+  .tile video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    background: #000;
+  }
+  .tile.you    { border-color: rgba(76, 201, 240, 0.3); }
+  .tile.you.active   { box-shadow: var(--shadow-glow-you); }
+  .tile.them   { border-color: rgba(247, 37, 133, 0.3); }
+  .tile.them.active  { box-shadow: var(--shadow-glow-them); }
+
+  /* In featured mode the non-featured column becomes a small PIP overlay,
+     and its keyboard is collapsed away.                                  */
+  .stage[data-layout="featured-you"]  .column.them,
+  .stage[data-layout="featured-them"] .column.you {
+    position: absolute;
+    bottom: var(--s4);
+    right: var(--s4);
+    width: 260px;
+    z-index: 5;
+    cursor: pointer;
+    box-shadow: var(--shadow-md);
+    gap: 0;
+  }
+  .stage[data-layout="featured-you"]  .column.them .tile,
+  .stage[data-layout="featured-them"] .column.you  .tile {
+    height: 160px;
+    flex: 0 0 160px;
+  }
+  /* Collapse the PIP's keyboard away */
+  .stage[data-layout="featured-you"]  .column.them .piano-wrap,
+  .stage[data-layout="featured-them"] .column.you  .piano-wrap {
+    max-height: 0;
+    opacity: 0;
+    border: 0;
+    margin: 0;
+  }
+  /* Featured column takes the whole row */
+  .stage[data-layout="featured-you"]  .column.you,
+  .stage[data-layout="featured-them"] .column.them {
+    grid-column: 1 / -1;
+  }
+
+  /* Focus controls overlaid on each tile */
+  .tile-controls {
+    position: absolute;
+    top: var(--s3);
+    right: var(--s3);
+    display: flex;
+    gap: var(--s2);
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 10;
+  }
+  .tile:hover .tile-controls { opacity: 1; }
+  .tile-btn {
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: var(--text);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: var(--r-sm);
+    padding: var(--s1) var(--s3);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .tile-btn:hover { background: rgba(0,0,0,0.85); transform: none; }
+
+  /* PIP gets a swap hint */
+  .column[data-pip="true"] .tile-controls { display: none; }
+  .column[data-pip="true"] .tile::after {
+    content: "Click to swap";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.5);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+  }
+  .column[data-pip="true"]:hover .tile::after { opacity: 1; }
+
+  .tile-label {
+    position: absolute;
+    bottom: var(--s4);
+    left: var(--s4);
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: var(--s2) var(--s3);
+    border-radius: var(--r-sm);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .tile-label.you  { color: var(--you); }
+  .tile-label.them { color: var(--them); }
+
+  .tile-empty {
+    text-align: center;
+    color: var(--text-faint);
+    padding: var(--s5);
+  }
+  .tile-empty h3 { font-size: 15px; color: var(--text-muted); margin-bottom: var(--s2); }
+  .tile-empty p  { font-size: 13px; max-width: 260px; }
+
+  /* ---- Keyboard (lives inside a .column under its tile) ---- */
+  .piano-wrap {
+    flex: 0 0 auto;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    transition: max-height 0.35s ease, opacity 0.25s ease, border 0.25s ease;
+    max-height: 200px;
+  }
+
+  /* Global toggle: hide all keyboards regardless of layout */
+  .stage.keyboards-off .piano-wrap {
+    max-height: 0;
+    opacity: 0;
+    border: 0;
+    margin: 0;
+  }
+
+  /* iOS-style toggle switch in the header.
+     The whole label is clickable; the .switch element is purely visual. */
+  .toggle-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s3);
+    padding: var(--s1) var(--s3) var(--s1) var(--s2);
+    background: transparent;
+    border: 0;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: color 0.15s;
+    user-select: none;
+  }
+  .toggle-switch:hover { color: var(--text); transform: none; }
+
+  .toggle-switch .icon {
+    width: 16px;
+    height: 16px;
+    color: var(--text-faint);
+    transition: color 0.15s;
+  }
+  .toggle-switch.on .icon { color: var(--you); }
+
+  /* The switch track + thumb */
+  .switch {
+    position: relative;
+    width: 32px;
+    height: 18px;
+    border-radius: 100px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    transition: background 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+  }
+  .switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: transform 0.2s ease, background 0.2s;
+  }
+  .toggle-switch.on .switch {
+    background: rgba(76, 201, 240, 0.2);
+    border-color: var(--you);
+  }
+  .toggle-switch.on .switch::after {
+    background: var(--you);
+    transform: translateX(14px);
+    box-shadow: 0 0 8px var(--you);
+  }
+  .toggle-switch.on { color: var(--text); }
+
+  .piano-header {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    padding: var(--s2) var(--s4);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .piano-header .swatch { width: 8px; height: 8px; border-radius: 50%; }
+  .piano-wrap.you  .piano-header .swatch  { background: var(--you);  box-shadow: 0 0 6px var(--you); }
+  .piano-wrap.them .piano-header .swatch  { background: var(--them); box-shadow: 0 0 6px var(--them); }
+  .piano-wrap.you  .piano-header .who     { color: var(--you); }
+  .piano-wrap.them .piano-header .who     { color: var(--them); }
+
+  /* Virtual piano. Key sizes use CSS variables that JS updates on resize. */
+  .piano {
+    position: relative;
+    height: 140px;
+    background: var(--bg-card);
+    padding: var(--s3);
+    display: flex;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .piano-inner {
+    position: relative;
+    height: 100%;
+    display: flex;
+    --w-white: 22px;
+    --w-black: 14px;
+    --m-overlap: 7px;
+  }
+  .key {
+    position: relative;
+    transition: background 0.05s ease-out;
+    flex-shrink: 0;
+  }
+  .key.white {
+    width: var(--w-white);
+    height: 100%;
+    background: #f5f5f0;
+    border: 1px solid #2a2e3a;
+    border-radius: 0 0 var(--r-sm) var(--r-sm);
+    margin-right: -1px;
+  }
+  .key.black {
+    width: var(--w-black);
+    height: 60%;
+    background: #1a1a1a;
+    border: 1px solid #000;
+    border-radius: 0 0 4px 4px;
+    margin-left: calc(-1 * var(--m-overlap));
+    margin-right: calc(-1 * var(--m-overlap));
+    z-index: 2;
+  }
+  /* Active note states */
+  .key.white.you-active  { background: var(--you);  box-shadow: inset 0 -8px 0 rgba(0,0,0,0.15); }
+  .key.white.them-active { background: var(--them); box-shadow: inset 0 -8px 0 rgba(0,0,0,0.15); }
+  .key.black.you-active  { background: var(--you); }
+  .key.black.them-active { background: var(--them); }
+
+  /* C-note labels */
+  .key.white::after {
+    content: attr(data-label);
+    position: absolute;
+    bottom: 4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    color: var(--text-faint);
+    font-family: var(--font-mono);
+  }
+
+  /* Toast notifications */
+  .toast {
+    position: fixed;
+    top: var(--s5);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: var(--s3) var(--s5);
+    border-radius: var(--r-md);
+    box-shadow: var(--shadow-md);
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast.error { border-color: var(--bad); color: var(--bad); }
+  .toast.success { border-color: var(--ok); color: var(--ok); }
+
+  /* Welcome modal */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+  }
+  .modal {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: var(--s6);
+    max-width: 460px;
+    box-shadow: var(--shadow-md);
+  }
+  .modal h2 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: var(--s3);
+  }
+  .modal p {
+    color: var(--text-muted);
+    margin-bottom: var(--s4);
+    font-size: 14px;
+  }
+  .modal ol { padding-left: var(--s5); color: var(--text-muted); margin-bottom: var(--s5); font-size: 13px; }
+  .modal ol li { margin-bottom: var(--s2); }
+  .modal-actions { display: flex; gap: var(--s3); justify-content: flex-end; }
+
+  @media (max-width: 900px) {
+    .stage[data-layout="equal"] { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    .connect-form input { width: 140px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============ HEADER ============ -->
+  <header class="header">
+    <div class="brand">
+      <div class="brand-mark"></div>
+      Duetto
+    </div>
+
+    <div class="connection">
+      <div class="id-badge" id="myIdBadge" title="Click to copy">
+        Your ID:<strong id="myId">…</strong>
+      </div>
+      <div class="connect-form">
+        <input type="text" id="peerIdInput" placeholder="Partner's ID" autocomplete="off" />
+        <button id="connectBtn">Connect</button>
+      </div>
+    </div>
+
+    <div class="status">
+      <button class="toggle-switch on" id="keysToggle" title="Show or hide the keyboard displays" aria-pressed="true">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="6" width="20" height="12" rx="1"/>
+          <line x1="6"  y1="6" x2="6"  y2="14"/>
+          <line x1="10" y1="6" x2="10" y2="14"/>
+          <line x1="14" y1="6" x2="14" y2="14"/>
+          <line x1="18" y1="6" x2="18" y2="14"/>
+        </svg>
+        <span id="keysToggleLabel">Keyboards</span>
+        <span class="switch" aria-hidden="true"></span>
+      </button>
+      <div class="status-pill">
+        <span class="dot" id="midiDot"></span>
+        <span id="midiStatus">No MIDI</span>
+      </div>
+      <div class="status-pill">
+        <span class="dot" id="peerDot"></span>
+        <span id="peerStatus">Offline</span>
+      </div>
+      <div class="status-pill" id="latencyPill" style="display:none">
+        <span id="latencyText">— ms</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ STAGE: two player columns, each with tile + keyboard ============ -->
+  <main class="stage" id="stage" data-layout="equal">
+
+    <!-- YOU column -->
+    <div class="column you" id="youColumn">
+      <div class="tile you" id="youTile">
+        <video id="youVideo" autoplay playsinline muted></video>
+        <div class="tile-label you">You</div>
+        <div class="tile-controls">
+          <button class="tile-btn" data-action="feature" data-who="you">Focus</button>
+          <button class="tile-btn" data-action="equal" style="display:none">Exit focus</button>
+        </div>
+      </div>
+      <div class="piano-wrap you">
+        <div class="piano-header">
+          <span class="swatch"></span><span class="who">You</span>
+        </div>
+        <div class="piano">
+          <div class="piano-inner" id="pianoYou"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PARTNER column -->
+    <div class="column them" id="themColumn">
+      <div class="tile them" id="themTile">
+        <video id="themVideo" autoplay playsinline></video>
+        <div class="tile-empty" id="themEmpty">
+          <h3>Waiting for your partner</h3>
+          <p>Share your ID with them, or paste theirs and hit Connect.</p>
+        </div>
+        <div class="tile-label them" id="themLabel" style="display:none">Partner</div>
+        <div class="tile-controls">
+          <button class="tile-btn" data-action="feature" data-who="them">Focus</button>
+          <button class="tile-btn" data-action="equal" style="display:none">Exit focus</button>
+        </div>
+      </div>
+      <div class="piano-wrap them">
+        <div class="piano-header">
+          <span class="swatch"></span><span class="who">Partner</span>
+        </div>
+        <div class="piano">
+          <div class="piano-inner" id="pianoThem"></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+</div>
+
+<!-- ============ WELCOME MODAL ============ -->
+<div class="modal-backdrop" id="welcomeModal">
+  <div class="modal">
+    <h2>Welcome to Duetto</h2>
+    <p>Real-time piano lessons that actually feel real-time. Here's how it works:</p>
+    <ol>
+      <li>Plug in your USB-MIDI keyboard <em>before</em> opening this page (browsers detect MIDI on load).</li>
+      <li>Allow camera and microphone when prompted.</li>
+      <li>You'll get a short ID — share it with your partner. Or paste theirs and Connect.</li>
+      <li>Both of you play freely. Your notes light up in cyan, theirs in magenta.</li>
+    </ol>
+    <p style="font-size: 12px; color: var(--text-faint);">
+      Works best in Chrome or Edge on a wired internet connection. Web MIDI is not supported in Safari or Firefox.
+    </p>
+    <div class="modal-actions">
+      <button id="startBtn">Let's play</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ TOAST ============ -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   DUETTO — main application script
+   Architecture:
+     - PeerJS for WebRTC signaling (zero-infra public broker)
+     - WebRTC media tracks for video + voice (talking)
+     - WebRTC DataChannel for MIDI events (~3 bytes/note)
+     - Tone.js Sampler for LOCAL piano sound (both your notes
+       and your partner's notes are synthesized here, so no
+       audio is sent across the wire — only the event is)
+   ========================================================= */
+
+const $ = (id) => document.getElementById(id);
+
+// ---- Globals ----
+let peer = null;          // PeerJS instance
+let conn = null;          // DataChannel-like wrapper from PeerJS for MIDI events
+let mediaCall = null;     // PeerJS MediaConnection (video + voice)
+let localStream = null;
+let midiAccess = null;
+let synthYou = null;      // Tone.js sampler — plays YOUR notes locally
+let synthThem = null;     // Tone.js sampler — plays PARTNER's notes locally
+let lastPingSent = 0;
+let pingInterval = null;
+
+// ---- Constants ----
+// Standard 88-key piano: MIDI note 21 (A0) → 108 (C8)
+const FIRST_NOTE = 21;
+const LAST_NOTE = 108;
+const WHITE_NOTES = [0, 2, 4, 5, 7, 9, 11]; // semitone offsets within octave
+
+// ---- Utility: toast ----
+function toast(msg, type = '') {
+  const el = $('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + type;
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { el.className = 'toast ' + type; }, 2800);
+}
+
+// ---- Utility: MIDI note → name (for keyboard rendering) ----
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+function midiToName(n) {
+  const octave = Math.floor(n / 12) - 1;
+  return NOTE_NAMES[n % 12] + octave;
+}
+function isBlackKey(n) {
+  return [1, 3, 6, 8, 10].includes(n % 12);
+}
+
+// ---- Build the virtual keyboards (one per player) ----
+function buildKeyboards() {
+  ['pianoYou', 'pianoThem'].forEach((containerId, idx) => {
+    const piano = $(containerId);
+    piano.innerHTML = '';
+    const who = idx === 0 ? 'you' : 'them';
+    for (let n = FIRST_NOTE; n <= LAST_NOTE; n++) {
+      const key = document.createElement('div');
+      key.className = 'key ' + (isBlackKey(n) ? 'black' : 'white');
+      key.dataset.note = n;
+      key.dataset.who = who;
+      if (n % 12 === 0) key.dataset.label = midiToName(n);
+      piano.appendChild(key);
+    }
+  });
+}
+
+// Highlight only the keyboard belonging to whoever played the note
+function highlightKey(note, on, who) {
+  const containerId = (who === 'you') ? 'pianoYou' : 'pianoThem';
+  const el = $(containerId).querySelector(`.key[data-note="${note}"]`);
+  if (!el) return;
+  const cls = (who === 'you') ? 'you-active' : 'them-active';
+  if (on) el.classList.add(cls); else el.classList.remove(cls);
+}
+
+// ---- Layout state ----
+let currentLayout = 'equal'; // 'equal' | 'featured-you' | 'featured-them'
+
+function setLayout(layout) {
+  currentLayout = layout;
+  $('stage').dataset.layout = layout;
+
+  // Mark which column is the PIP (used by CSS for hover hint & click-to-swap)
+  document.querySelectorAll('.column').forEach(c => c.removeAttribute('data-pip'));
+  if (layout === 'featured-you')  $('themColumn').setAttribute('data-pip', 'true');
+  if (layout === 'featured-them') $('youColumn').setAttribute('data-pip', 'true');
+
+  // Toggle "Focus" vs "Exit focus" buttons per tile
+  document.querySelectorAll('.tile').forEach(tile => {
+    const who = tile.id === 'youTile' ? 'you' : 'them';
+    const isFeatured = layout === `featured-${who}`;
+    const focusBtn = tile.querySelector('[data-action="feature"]');
+    const exitBtn  = tile.querySelector('[data-action="equal"]');
+    focusBtn.style.display = isFeatured ? 'none' : '';
+    exitBtn.style.display  = isFeatured ? '' : 'none';
+  });
+
+  // The visible piano width changes when layout changes — refit after transition
+  setTimeout(fitPianos, 380);
+}
+
+// ---- Responsive keyboard sizing ----
+// We render keys using CSS variables (--w-white, --w-black, --m-overlap).
+// On layout change or window resize, recompute so the 88-key piano fits its column.
+function fitPianos() {
+  const NUM_WHITES = 52;
+  document.querySelectorAll('.piano').forEach(piano => {
+    // Hidden pianos (e.g. inside a collapsed PIP) report 0 width — skip them
+    const available = piano.clientWidth - 24; // minus horizontal padding
+    if (available <= 0) return;
+
+    // Each white key contributes (whiteW - 1px overlap). Solve for whiteW.
+    const whiteW = Math.max(6, Math.min(28, (available + NUM_WHITES) / NUM_WHITES));
+    const blackW = whiteW * 0.62;
+    const overlap = blackW / 2;
+
+    const inner = piano.querySelector('.piano-inner');
+    inner.style.setProperty('--w-white', whiteW + 'px');
+    inner.style.setProperty('--w-black', blackW + 'px');
+    inner.style.setProperty('--m-overlap', overlap + 'px');
+  });
+}
+
+// Refit on window resize (debounced)
+let _resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(fitPianos, 80);
+});
+
+// ---- Tone.js: create two samplers (so you can visually distinguish, optionally pan) ----
+async function initSynths() {
+  // Salamander Grand Piano samples — free, beautiful, hosted by Tone.js team
+  const samples = {
+    'A0':'A0.mp3','C1':'C1.mp3','D#1':'Ds1.mp3','F#1':'Fs1.mp3','A1':'A1.mp3',
+    'C2':'C2.mp3','D#2':'Ds2.mp3','F#2':'Fs2.mp3','A2':'A2.mp3',
+    'C3':'C3.mp3','D#3':'Ds3.mp3','F#3':'Fs3.mp3','A3':'A3.mp3',
+    'C4':'C4.mp3','D#4':'Ds4.mp3','F#4':'Fs4.mp3','A4':'A4.mp3',
+    'C5':'C5.mp3','D#5':'Ds5.mp3','F#5':'Fs5.mp3','A5':'A5.mp3',
+    'C6':'C6.mp3','D#6':'Ds6.mp3','F#6':'Fs6.mp3','A6':'A6.mp3',
+    'C7':'C7.mp3','D#7':'Ds7.mp3','F#7':'Fs7.mp3','A7':'A7.mp3','C8':'C8.mp3'
+  };
+  const baseUrl = 'https://tonejs.github.io/audio/salamander/';
+
+  synthYou  = new Tone.Sampler({ urls: samples, baseUrl }).toDestination();
+  synthThem = new Tone.Sampler({ urls: samples, baseUrl }).toDestination();
+
+  // Wait for samples to load before allowing playback (no audible glitch on first key)
+  await Tone.loaded();
+}
+
+function playNote(note, velocity, who) {
+  const synth = (who === 'you') ? synthYou : synthThem;
+  if (!synth) return;
+  // Velocity 0 in MIDI = note off (sometimes); we treat as release
+  if (velocity === 0) {
+    synth.triggerRelease(Tone.Frequency(note, 'midi').toNote());
+  } else {
+    synth.triggerAttack(Tone.Frequency(note, 'midi').toNote(), undefined, velocity / 127);
+  }
+}
+
+function releaseNote(note, who) {
+  const synth = (who === 'you') ? synthYou : synthThem;
+  if (!synth) return;
+  synth.triggerRelease(Tone.Frequency(note, 'midi').toNote());
+}
+
+// ---- Web MIDI: capture local keyboard input ----
+async function initMidi() {
+  if (!navigator.requestMIDIAccess) {
+    $('midiStatus').textContent = 'MIDI unsupported';
+    $('midiDot').classList.add('bad');
+    toast('Web MIDI is not supported in this browser. Try Chrome or Edge.', 'error');
+    return;
+  }
+  try {
+    midiAccess = await navigator.requestMIDIAccess({ sysex: false });
+  } catch (err) {
+    $('midiStatus').textContent = 'MIDI denied';
+    $('midiDot').classList.add('bad');
+    return;
+  }
+
+  const updateInputs = () => {
+    const inputs = Array.from(midiAccess.inputs.values());
+    if (inputs.length === 0) {
+      $('midiStatus').textContent = 'No MIDI device';
+      $('midiDot').className = 'dot warn';
+    } else {
+      $('midiStatus').textContent = inputs[0].name;
+      $('midiDot').className = 'dot ok';
+    }
+    // Attach handlers to every input (in case user plugs in a new one)
+    inputs.forEach(input => { input.onmidimessage = onMidiMessage; });
+  };
+
+  updateInputs();
+  midiAccess.onstatechange = updateInputs;
+}
+
+function onMidiMessage(e) {
+  const [status, note, velocity] = e.data;
+  const cmd = status & 0xf0;
+  // 0x90 = note on, 0x80 = note off
+  if (cmd === 0x90 && velocity > 0) {
+    handleLocalNote(note, velocity, true);
+  } else if (cmd === 0x80 || (cmd === 0x90 && velocity === 0)) {
+    handleLocalNote(note, 0, false);
+  }
+}
+
+function handleLocalNote(note, velocity, isOn) {
+  // 1. Play locally (instant — zero latency)
+  if (isOn) playNote(note, velocity, 'you');
+  else releaseNote(note, 'you');
+
+  // 2. Light up the keyboard
+  highlightKey(note, isOn, 'you');
+
+  // 3. Send to partner if connected
+  if (conn && conn.open) {
+    conn.send({ t: isOn ? 'on' : 'off', n: note, v: velocity, ts: performance.now() });
+  }
+}
+
+// ---- Handle MIDI events arriving from the partner ----
+function handleRemoteEvent(msg) {
+  if (msg.t === 'on') {
+    playNote(msg.n, msg.v, 'them');
+    highlightKey(msg.n, true, 'them');
+  } else if (msg.t === 'off') {
+    releaseNote(msg.n, 'them');
+    highlightKey(msg.n, false, 'them');
+  } else if (msg.t === 'ping') {
+    conn.send({ t: 'pong', ts: msg.ts });
+  } else if (msg.t === 'pong') {
+    const rtt = performance.now() - msg.ts;
+    $('latencyPill').style.display = 'inline-flex';
+    $('latencyText').textContent = Math.round(rtt) + ' ms RTT';
+  }
+}
+
+// ---- PeerJS setup ----
+function initPeer() {
+  // Use the free PeerJS public broker. For production you'd self-host.
+  peer = new Peer({ debug: 1 });
+
+  peer.on('open', (id) => {
+    $('myId').textContent = id;
+    $('peerDot').className = 'dot warn';
+    $('peerStatus').textContent = 'Ready';
+  });
+
+  peer.on('error', (err) => {
+    console.error('Peer error:', err);
+    toast('Connection error: ' + err.type, 'error');
+  });
+
+  // Incoming data connection
+  peer.on('connection', (c) => {
+    setupDataConnection(c);
+  });
+
+  // Incoming video call
+  peer.on('call', (call) => {
+    call.answer(localStream);
+    setupMediaCall(call);
+  });
+}
+
+function setupDataConnection(c) {
+  // Replace any existing connection
+  if (conn) { try { conn.close(); } catch(e){} }
+  conn = c;
+
+  conn.on('open', () => {
+    $('peerDot').className = 'dot ok';
+    $('peerStatus').textContent = 'Connected';
+    toast('Connected to ' + conn.peer, 'success');
+
+    // Start RTT pinging
+    if (pingInterval) clearInterval(pingInterval);
+    pingInterval = setInterval(() => {
+      if (conn && conn.open) conn.send({ t: 'ping', ts: performance.now() });
+    }, 2000);
+  });
+
+  conn.on('data', handleRemoteEvent);
+
+  conn.on('close', () => {
+    $('peerDot').className = 'dot bad';
+    $('peerStatus').textContent = 'Disconnected';
+    $('latencyPill').style.display = 'none';
+    if (pingInterval) clearInterval(pingInterval);
+  });
+}
+
+function setupMediaCall(call) {
+  mediaCall = call;
+  call.on('stream', (remoteStream) => {
+    const v = $('themVideo');
+    v.srcObject = remoteStream;
+    $('themEmpty').style.display = 'none';
+    $('themLabel').style.display = 'block';
+    $('themTile').classList.add('active');
+  });
+  call.on('close', () => {
+    $('themTile').classList.remove('active');
+    $('themEmpty').style.display = 'block';
+    $('themLabel').style.display = 'none';
+  });
+}
+
+// ---- Local camera/mic ----
+async function initLocalMedia() {
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 1280, height: 720 },
+      audio: { echoCancellation: true, noiseSuppression: true }
+    });
+    $('youVideo').srcObject = localStream;
+    $('youTile').classList.add('active');
+  } catch (err) {
+    toast('Camera/mic access denied: ' + err.message, 'error');
+  }
+}
+
+// ---- "Connect" button: initiate to a remote peer ----
+function connectToPeer() {
+  const targetId = $('peerIdInput').value.trim();
+  if (!targetId) return;
+  if (!peer || !peer.id) {
+    toast('Still initializing, try again in a moment.', 'error');
+    return;
+  }
+
+  // 1. Open data channel for MIDI
+  const c = peer.connect(targetId, { reliable: false });
+  setupDataConnection(c);
+
+  // 2. Start a video/voice call
+  if (localStream) {
+    const call = peer.call(targetId, localStream);
+    setupMediaCall(call);
+  }
+}
+
+// ---- Wire everything up ----
+$('startBtn').addEventListener('click', async () => {
+  $('welcomeModal').style.display = 'none';
+
+  // Tone.js requires a user gesture before starting the audio context
+  await Tone.start();
+
+  toast('Loading piano samples…');
+  await initSynths();
+
+  await Promise.all([initLocalMedia(), initMidi()]);
+
+  initPeer();
+  buildKeyboards();
+  setLayout('equal');
+  fitPianos();
+  toast('Ready to play', 'success');
+});
+
+// ---- Layout interactions: focus buttons + PIP swap ----
+document.addEventListener('click', (e) => {
+  // Focus a tile
+  const featureBtn = e.target.closest('[data-action="feature"]');
+  if (featureBtn) {
+    e.stopPropagation();
+    setLayout('featured-' + featureBtn.dataset.who);
+    return;
+  }
+  // Exit focus
+  const exitBtn = e.target.closest('[data-action="equal"]');
+  if (exitBtn) {
+    e.stopPropagation();
+    setLayout('equal');
+    return;
+  }
+  // Click the PIP column to swap focus (so the PIP becomes the featured one)
+  const pipColumn = e.target.closest('.column[data-pip="true"]');
+  if (pipColumn) {
+    const who = pipColumn.id === 'youColumn' ? 'you' : 'them';
+    setLayout('featured-' + who);
+  }
+});
+
+$('connectBtn').addEventListener('click', connectToPeer);
+$('peerIdInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') connectToPeer(); });
+
+$('myIdBadge').addEventListener('click', () => {
+  const id = $('myId').textContent;
+  if (id && id !== '…') {
+    navigator.clipboard.writeText(id);
+    toast('ID copied', 'success');
+  }
+});
+
+// ---- Keyboards on/off toggle ----
+$('keysToggle').addEventListener('click', () => {
+  const stage = $('stage');
+  const btn = $('keysToggle');
+  const showing = !stage.classList.contains('keyboards-off');
+
+  if (showing) {
+    // Hide
+    stage.classList.add('keyboards-off');
+    btn.classList.remove('on');
+    btn.setAttribute('aria-pressed', 'false');
+  } else {
+    // Show — refit after the transition completes so keys size correctly
+    stage.classList.remove('keyboards-off');
+    btn.classList.add('on');
+    btn.setAttribute('aria-pressed', 'true');
+    setTimeout(fitPianos, 380);
+  }
+});
+</script>
+</body>
+</html>
