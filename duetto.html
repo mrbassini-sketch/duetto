@@ -10,6 +10,11 @@
 <!-- Tone.js: local piano synthesis (we render the remote player's notes on our own machine) -->
 <script src="https://unpkg.com/tone@14.8.49/build/Tone.js"></script>
 
+<!-- Editorial typography: Fraunces (display serif) + Inter (UI sans) + JetBrains Mono -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,400;9..144,600;9..144,800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
 <style>
   /* =========================================================
      DESIGN SYSTEM
@@ -17,26 +22,30 @@
      As a designer, you can reskin the entire app from here.
      ========================================================= */
   :root {
-    /* Color palette — warm dark studio aesthetic */
-    --bg:            #0e0f13;
-    --bg-elevated:   #16181f;
-    --bg-card:       #1c1f28;
-    --border:        #2a2e3a;
-    --text:          #e8eaf0;
-    --text-muted:    #8d93a3;
-    --text-faint:    #5a6072;
+    /* Editorial cream palette — paper, ink, mint */
+    --bg:            #E8E5DD;          /* cream paper */
+    --bg-elevated:   #f0ede5;          /* slightly lighter cream — cards */
+    --bg-card:       #f7f5ef;          /* lightest cream — nested */
+    --bg-stage:      #DCD9D1;          /* slightly darker, for the keyboard panel */
+    --border:        #0a0c12;          /* solid ink line */
+    --border-soft:   rgba(10,12,18,0.18);
+    --text:          #0a0c12;          /* near-black ink */
+    --text-muted:    #2a2c34;
+    --text-faint:    #6a6a65;
 
-    /* Brand colors — "you" vs "them" so the duet feels alive */
-    --you:           #4cc9f0;   /* cool cyan — your notes */
-    --them:          #f72585;   /* warm magenta — instructor's notes */
-    --accent:        #ffb703;   /* signal / alerts / focus */
-    --ok:            #06d6a0;
+    /* Brand: still cyan & magenta for the two players; mint as singular accent */
+    --you:           #4cc9f0;
+    --them:          #f72585;
+    --green:         #3FE38B;          /* mint from the intro poster */
+    --accent:        #3FE38B;
+    --ok:            #3FE38B;
     --warn:          #ffb703;
     --bad:           #ef476f;
 
-    /* Type */
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    /* Type stack: editorial serif for display, clean sans for UI, mono for data */
+    --font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
+    --font-sans:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono:  'JetBrains Mono', 'SF Mono', Menlo, monospace;
 
     /* Spacing scale */
     --s1: 4px;
@@ -47,14 +56,14 @@
     --s6: 32px;
     --s7: 48px;
 
-    /* Radii & shadows */
-    --r-sm: 6px;
-    --r-md: 10px;
-    --r-lg: 16px;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
-    --shadow-md: 0 8px 24px rgba(0,0,0,0.4);
-    --shadow-glow-you:  0 0 24px rgba(76, 201, 240, 0.4);
-    --shadow-glow-them: 0 0 24px rgba(247, 37, 133, 0.4);
+    /* Editorial = hard edges. Radii are small or zero. */
+    --r-sm: 2px;
+    --r-md: 3px;
+    --r-lg: 4px;
+    --shadow-sm: none;
+    --shadow-md: 4px 4px 0 rgba(10,12,18,0.08);
+    --shadow-glow-you:  inset 0 0 0 2px var(--you);
+    --shadow-glow-them: inset 0 0 0 2px var(--them);
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -62,6 +71,7 @@
   html, body {
     height: 100%;
     background: var(--bg);
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.1 0"/></filter><rect width="240" height="240" filter="url(%23n)"/></svg>');
     color: var(--text);
     font-family: var(--font-sans);
     font-size: 14px;
@@ -85,24 +95,32 @@
     align-items: center;
     justify-content: space-between;
     padding: var(--s3) var(--s5);
-    background: var(--bg-elevated);
+    background: transparent;
     border-bottom: 1px solid var(--border);
     gap: var(--s5);
   }
+  /* Header wordmark — mono caps, matches the intro poster's "DUETTO" type */
   .brand {
     display: flex;
     align-items: center;
-    gap: var(--s3);
-    font-weight: 600;
-    font-size: 16px;
-    letter-spacing: -0.02em;
+    gap: var(--s4);
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.22em;
+    color: var(--text);
   }
-  .brand-mark {
-    width: 28px;
-    height: 28px;
-    border-radius: 8px;
-    background: linear-gradient(135deg, var(--you), var(--them));
+  .brand-tagline {
+    display: none;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    padding-left: var(--s4);
+    border-left: 1px solid var(--border);
   }
+  @media (min-width: 1100px) { .brand-tagline { display: inline; } }
 
   .connection {
     display: flex;
@@ -113,25 +131,23 @@
   }
   .id-badge {
     font-family: var(--font-mono);
-    background: var(--bg-card);
+    background: transparent;
     border: 1px solid var(--border);
     padding: var(--s2) var(--s3);
     border-radius: var(--r-sm);
-    font-size: 13px;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
     color: var(--text-muted);
     cursor: pointer;
-    transition: all 0.15s;
+    transition: background 0.15s;
   }
-  .id-badge:hover { color: var(--text); border-color: var(--text-faint); }
-  .id-badge strong { color: var(--text); font-weight: 600; margin-left: var(--s2); }
+  .id-badge:hover { background: rgba(10,12,18,0.05); }
+  .id-badge strong { color: var(--text); font-weight: 700; margin-left: var(--s2); letter-spacing: 0; text-transform: none; }
 
-  .connect-form {
-    display: flex;
-    align-items: center;
-    gap: var(--s2);
-  }
+  .connect-form { display: flex; align-items: center; gap: var(--s2); }
   .connect-form input {
-    background: var(--bg-card);
+    background: transparent;
     border: 1px solid var(--border);
     color: var(--text);
     padding: var(--s2) var(--s3);
@@ -140,9 +156,10 @@
     font-size: 13px;
     width: 220px;
     outline: none;
-    transition: border-color 0.15s;
+    transition: background 0.15s;
   }
-  .connect-form input:focus { border-color: var(--you); }
+  .connect-form input::placeholder { color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px; }
+  .connect-form input:focus { background: rgba(10,12,18,0.04); }
 
   button {
     background: var(--text);
@@ -150,9 +167,11 @@
     border: 0;
     padding: var(--s2) var(--s4);
     border-radius: var(--r-sm);
-    font-family: inherit;
-    font-weight: 600;
-    font-size: 13px;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
     cursor: pointer;
     transition: all 0.15s;
   }
@@ -164,26 +183,29 @@
   .status {
     display: flex;
     align-items: center;
-    gap: var(--s3);
-    font-size: 12px;
+    gap: var(--s2);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
     color: var(--text-muted);
   }
   .status-pill {
     display: inline-flex;
     align-items: center;
     gap: var(--s2);
-    padding: var(--s1) var(--s3);
-    background: var(--bg-card);
-    border-radius: 100px;
+    padding: var(--s2) var(--s3);
+    background: transparent;
+    border-radius: var(--r-sm);
     border: 1px solid var(--border);
   }
   .dot {
-    width: 8px; height: 8px; border-radius: 50%;
+    width: 7px; height: 7px;
     background: var(--text-faint);
     transition: background 0.2s;
   }
-  .dot.ok   { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
-  .dot.warn { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+  .dot.ok   { background: var(--green); }
+  .dot.warn { background: var(--warn); }
   .dot.bad  { background: var(--bad); }
 
   /* ---- Main stage: holds two player columns ---- */
@@ -209,17 +231,20 @@
     display: flex;
     flex-direction: column;
     gap: var(--s3);
-    min-height: 0; /* allow flex children to shrink */
+    min-width: 0;  /* without this, the column refuses to shrink below its content's intrinsic size */
+    min-height: 0;
     transition: all 0.35s ease;
+    overflow: hidden;
   }
 
   .tile {
     position: relative;
     flex: 1;
+    min-width: 0;
     min-height: 0;
-    background: var(--bg-elevated);
+    background: #0a0c12;            /* dark backdrop so the video itself stands out on cream */
     border: 1px solid var(--border);
-    border-radius: var(--r-lg);
+    border-radius: var(--r-md);
     overflow: hidden;
     display: flex;
     align-items: center;
@@ -230,11 +255,10 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    background: #000;
+    background: #0a0c12;
+    display: block;
   }
-  .tile.you    { border-color: rgba(76, 201, 240, 0.3); }
   .tile.you.active   { box-shadow: var(--shadow-glow-you); }
-  .tile.them   { border-color: rgba(247, 37, 133, 0.3); }
   .tile.them.active  { box-shadow: var(--shadow-glow-them); }
 
   /* In featured mode the non-featured column becomes a small PIP overlay,
@@ -281,20 +305,24 @@
     z-index: 10;
   }
   .tile:hover .tile-controls { opacity: 1; }
+  /* These buttons sit OVER the dark video tile, so they keep light text on a
+     dark translucent background regardless of the overall app theme. */
   .tile-btn {
-    background: rgba(0,0,0,0.65);
+    background: rgba(10,12,18,0.7);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-    color: var(--text);
-    border: 1px solid rgba(255,255,255,0.1);
+    color: #E8E5DD;
+    border: 1px solid rgba(232,229,221,0.15);
     border-radius: var(--r-sm);
-    padding: var(--s1) var(--s3);
-    font-size: 11px;
-    font-weight: 600;
+    padding: 4px 9px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
     cursor: pointer;
-    font-family: inherit;
   }
-  .tile-btn:hover { background: rgba(0,0,0,0.85); transform: none; }
+  .tile-btn:hover { background: rgba(10,12,18,0.9); transform: none; }
 
   /* PIP gets a swap hint */
   .column[data-pip="true"] .tile-controls { display: none; }
@@ -319,32 +347,40 @@
     position: absolute;
     bottom: var(--s4);
     left: var(--s4);
-    background: rgba(0,0,0,0.6);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    padding: var(--s2) var(--s3);
-    border-radius: var(--r-sm);
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.02em;
+    padding: 4px 10px 5px;
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #0a0c12;
   }
-  .tile-label.you  { color: var(--you); }
-  .tile-label.them { color: var(--them); }
+  .tile-label.you  { background: var(--you); }
+  .tile-label.them { background: var(--them); }
 
   .tile-empty {
     text-align: center;
-    color: var(--text-faint);
+    color: rgba(232, 229, 221, 0.55);
     padding: var(--s5);
   }
-  .tile-empty h3 { font-size: 15px; color: var(--text-muted); margin-bottom: var(--s2); }
-  .tile-empty p  { font-size: 13px; max-width: 260px; }
+  .tile-empty h3 {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(232, 229, 221, 0.9);
+    margin-bottom: var(--s3);
+  }
+  .tile-empty p  { font-size: 13px; max-width: 280px; line-height: 1.5; }
 
-  /* ---- Keyboard (lives inside a .column under its tile) ---- */
+  /* ---- Keyboard card (lives inside a .column under its tile) ---- */
   .piano-wrap {
     flex: 0 0 auto;
+    min-width: 0;
     background: var(--bg-elevated);
     border: 1px solid var(--border);
-    border-radius: var(--r-lg);
+    border-radius: var(--r-md);
     overflow: hidden;
     transition: max-height 0.35s ease, opacity 0.25s ease, border 0.25s ease;
     max-height: 200px;
@@ -358,88 +394,159 @@
     margin: 0;
   }
 
-  /* iOS-style toggle switch in the header.
-     The whole label is clickable; the .switch element is purely visual. */
+  /* Editorial toggle switch: square track, hard edges, mint green when on */
   .toggle-switch {
     display: inline-flex;
     align-items: center;
     gap: var(--s3);
-    padding: var(--s1) var(--s3) var(--s1) var(--s2);
+    padding: var(--s2) var(--s3);
     background: transparent;
-    border: 0;
-    font-family: inherit;
-    font-size: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
     color: var(--text-muted);
     cursor: pointer;
-    transition: color 0.15s;
+    transition: background 0.15s;
     user-select: none;
   }
-  .toggle-switch:hover { color: var(--text); transform: none; }
+  .toggle-switch:hover { background: rgba(10,12,18,0.05); transform: none; }
 
   .toggle-switch .icon {
-    width: 16px;
-    height: 16px;
-    color: var(--text-faint);
+    width: 14px;
+    height: 14px;
+    color: var(--text-muted);
     transition: color 0.15s;
   }
-  .toggle-switch.on .icon { color: var(--you); }
+  .toggle-switch.on .icon { color: var(--text); }
 
-  /* The switch track + thumb */
+  /* Square track + thumb — hard edges, no rounding */
   .switch {
     position: relative;
-    width: 32px;
-    height: 18px;
-    border-radius: 100px;
-    background: var(--bg-card);
+    width: 30px;
+    height: 16px;
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
-    transition: background 0.2s, border-color 0.2s;
+    transition: background 0.2s;
     flex-shrink: 0;
   }
   .switch::after {
     content: "";
     position: absolute;
-    top: 2px;
-    left: 2px;
+    top: 1px;
+    left: 1px;
     width: 12px;
     height: 12px;
-    border-radius: 50%;
-    background: var(--text-muted);
+    background: var(--text);
     transition: transform 0.2s ease, background 0.2s;
   }
-  .toggle-switch.on .switch {
-    background: rgba(76, 201, 240, 0.2);
-    border-color: var(--you);
-  }
-  .toggle-switch.on .switch::after {
-    background: var(--you);
-    transform: translateX(14px);
-    box-shadow: 0 0 8px var(--you);
-  }
+  .toggle-switch.on .switch { background: var(--green); }
+  .toggle-switch.on .switch::after { transform: translateX(14px); }
   .toggle-switch.on { color: var(--text); }
+
+  /* Sound picker — mono caps, same hard-edged style as the rest */
+  .sound-picker {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    padding: var(--s2) var(--s3);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .sound-picker:hover { background: rgba(10,12,18,0.05); }
+  .sound-picker svg { width: 13px; height: 13px; color: var(--text-muted); }
+  .sound-picker select {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+    outline: none;
+    padding-right: var(--s3);
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .sound-picker select option { background: var(--bg); color: var(--text); text-transform: none; letter-spacing: 0; }
 
   .piano-header {
     display: flex;
     align-items: center;
-    gap: var(--s2);
-    padding: var(--s2) var(--s4);
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+    gap: var(--s3);
+    padding: var(--s3) var(--s4);
+    font-size: 12px;
     color: var(--text-muted);
     border-bottom: 1px solid var(--border);
+    background: var(--bg-elevated);
   }
-  .piano-header .swatch { width: 8px; height: 8px; border-radius: 50%; }
-  .piano-wrap.you  .piano-header .swatch  { background: var(--you);  box-shadow: 0 0 6px var(--you); }
-  .piano-wrap.them .piano-header .swatch  { background: var(--them); box-shadow: 0 0 6px var(--them); }
-  .piano-wrap.you  .piano-header .who     { color: var(--you); }
-  .piano-wrap.them .piano-header .who     { color: var(--them); }
+  .piano-header .swatch { display: none; }
+
+  /* Player label — bold color block, mono caps */
+  .piano-header .who {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 3px 9px 4px;
+    border-radius: var(--r-sm);
+    color: #0a0c12;
+  }
+  .piano-wrap.you  .piano-header .who { background: var(--you); }
+  .piano-wrap.them .piano-header .who { background: var(--them); }
+
+  /* Sound name — serif, smaller weight, sits as an editorial caption */
+  .piano-header .sound-name {
+    font-family: var(--font-serif);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    text-transform: none;
+    letter-spacing: -0.01em;
+    font-variation-settings: "opsz" 24, "SOFT" 100;
+  }
+  .piano-header .sound-name::before { content: ""; }
+
+  /* Sustain indicator — invisible until the pedal is engaged */
+  .piano-header .sustain-pill {
+    margin-left: var(--s3);
+    padding: 2px 8px;
+    border-radius: 100px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-faint);
+    opacity: 0;
+    transform: scale(0.9);
+    transition: opacity 0.15s, transform 0.15s, background 0.15s, color 0.15s;
+    pointer-events: none;
+  }
+  .piano-header .sustain-pill.on { opacity: 1; transform: scale(1); }
+  .piano-wrap.you  .sustain-pill.on { background: rgba(76, 201, 240, 0.15); border-color: var(--you);  color: var(--you);  box-shadow: 0 0 10px rgba(76, 201, 240, 0.35); }
+  .piano-wrap.them .sustain-pill.on { background: rgba(247, 37, 133, 0.15); border-color: var(--them); color: var(--them); box-shadow: 0 0 10px rgba(247, 37, 133, 0.35); }
 
   /* Virtual piano. Key sizes use CSS variables that JS updates on resize. */
   .piano {
     position: relative;
     height: 140px;
-    background: var(--bg-card);
+    background: var(--bg-stage);
     padding: var(--s3);
     display: flex;
     justify-content: center;
@@ -461,17 +568,17 @@
   .key.white {
     width: var(--w-white);
     height: 100%;
-    background: #f5f5f0;
-    border: 1px solid #2a2e3a;
+    background: #f7f5ef;
+    border: 1px solid #0a0c12;
     border-radius: 0 0 var(--r-sm) var(--r-sm);
     margin-right: -1px;
   }
   .key.black {
     width: var(--w-black);
     height: 60%;
-    background: #1a1a1a;
-    border: 1px solid #000;
-    border-radius: 0 0 4px 4px;
+    background: #0a0c12;
+    border: 1px solid #0a0c12;
+    border-radius: 0 0 3px 3px;
     margin-left: calc(-1 * var(--m-overlap));
     margin-right: calc(-1 * var(--m-overlap));
     z-index: 2;
@@ -490,65 +597,204 @@
     left: 50%;
     transform: translateX(-50%);
     font-size: 9px;
-    color: var(--text-faint);
+    color: rgba(10, 12, 18, 0.4);
     font-family: var(--font-mono);
+    letter-spacing: 0.05em;
   }
 
-  /* Toast notifications */
+  /* Toast notifications — mono caps, editorial card */
   .toast {
     position: fixed;
     top: var(--s5);
     left: 50%;
     transform: translateX(-50%);
-    background: var(--bg-card);
+    background: var(--bg);
+    color: var(--text);
     border: 1px solid var(--border);
     padding: var(--s3) var(--s5);
-    border-radius: var(--r-md);
+    border-radius: var(--r-sm);
     box-shadow: var(--shadow-md);
-    font-size: 13px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s, transform 0.2s;
     z-index: 100;
   }
   .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-  .toast.error { border-color: var(--bad); color: var(--bad); }
-  .toast.success { border-color: var(--ok); color: var(--ok); }
+  .toast.error { background: var(--bad); color: var(--bg); border-color: var(--bad); }
+  .toast.success { background: var(--green); color: var(--text); border-color: var(--text); }
 
-  /* Welcome modal */
+  /* ==== Intro: editorial poster on cream paper ==== */
+  /* Off-white cream like the reference, with subtle paper grain (inline SVG noise) */
   .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.7);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    z-index: 50;
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 50;
+    padding: var(--s5);
+    background: #E8E5DD;
+    background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="240" height="240"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.12 0"/></filter><rect width="240" height="240" filter="url(%23n)"/></svg>');
+    overflow: auto;
   }
-  .modal {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--r-lg);
-    padding: var(--s6);
-    max-width: 460px;
-    box-shadow: var(--shadow-md);
+
+  /* The "poster" — an editorial composition that fills the viewport */
+  .cover {
+    position: relative;
+    width: 100%;
+    max-width: 1100px;
+    background: transparent;
+    color: #0a0c12;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: var(--s7);
+    padding: var(--s5) var(--s6);
   }
-  .modal h2 {
-    font-size: 22px;
+
+  /* Top bar: wordmark left, system label right */
+  .cover-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-bottom: var(--s4);
+    border-bottom: 1px solid #0a0c12;
+  }
+  .cover-wordmark {
+    font-family: var(--font-mono);
+    font-size: 13px;
     font-weight: 700;
-    letter-spacing: -0.02em;
-    margin-bottom: var(--s3);
+    letter-spacing: 0.22em;
+    color: #0a0c12;
   }
-  .modal p {
-    color: var(--text-muted);
-    margin-bottom: var(--s4);
-    font-size: 14px;
+  .cover-sublabel {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: #0a0c12;
+    letter-spacing: 0.18em;
+    text-align: right;
   }
-  .modal ol { padding-left: var(--s5); color: var(--text-muted); margin-bottom: var(--s5); font-size: 13px; }
-  .modal ol li { margin-bottom: var(--s2); }
-  .modal-actions { display: flex; gap: var(--s3); justify-content: flex-end; }
+  .cover-sublabel span { opacity: 0.55; }
+
+  /* The hero composition: art on the left, title + code on the right */
+  .cover-hero {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: var(--s7);
+    align-items: center;
+  }
+
+  /* Abstract music: a Lissajous figure — literally the geometry of two
+     musical frequencies plotted against each other. Drawn at runtime. */
+  .cover-art-wrap {
+    position: relative;
+    aspect-ratio: 1;
+    background: #f0ede5;
+    border: 1px solid #0a0c12;
+    padding: var(--s5);
+  }
+  .cover-art-wrap::before {
+    content: "FIG. 01 — TWO·FREQUENCY LOCK";
+    position: absolute;
+    top: -10px;
+    left: 20px;
+    background: #E8E5DD;
+    padding: 0 8px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    color: #0a0c12;
+  }
+  .cover-art { width: 100%; height: 100%; display: block; }
+  .cover-art path { stroke: #0a0c12; }
+
+  /* Headline + supporting text on the right */
+  .cover-body { display: grid; gap: var(--s5); }
+  .cover-title {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    font-size: clamp(40px, 5vw, 78px);
+    line-height: 0.95;
+    letter-spacing: -0.035em;
+    color: #0a0c12;
+    margin: 0;
+    font-variation-settings: "opsz" 144, "SOFT" 100;
+  }
+  .cover-title .ital { font-style: italic; font-weight: 600; }
+  .cover-title .mark {
+    display: inline-block;
+    background: #3FE38B;
+    color: #0a0c12;
+    padding: 0 8px;
+    margin: 0 -2px;
+  }
+
+  .cover-lede {
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
+    color: #2a2c34;
+    max-width: 480px;
+  }
+
+  /* Mono code block — the "how it works" technical visual */
+  .cover-code {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.7;
+    color: #0a0c12;
+    background: #f0ede5;
+    border: 1px solid #0a0c12;
+    padding: var(--s4) var(--s5);
+    white-space: pre-wrap;
+  }
+  .cover-code .dim   { color: rgba(10, 12, 18, 0.45); }
+  .cover-code .accent{ background: #3FE38B; padding: 1px 4px; }
+
+  /* Bottom bar: requirements + the CTA */
+  .cover-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: var(--s4);
+    border-top: 1px solid #0a0c12;
+  }
+  .cover-meta {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: #2a2c34;
+  }
+  .cover-meta span { opacity: 0.6; margin: 0 var(--s2); }
+
+  .cover-cta {
+    background: #0a0c12 !important;
+    color: #E8E5DD !important;
+    border: 0;
+    padding: var(--s4) var(--s6);
+    font-family: var(--font-mono);
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    font-size: 12px;
+    border-radius: 0;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s4);
+    transition: all 0.15s;
+  }
+  .cover-cta:hover { background: #2a2c34 !important; transform: translateY(-1px); }
+  .cover-cta .arrow { font-size: 18px; }
+
+  /* Mobile collapse: single column hero */
+  @media (max-width: 800px) {
+    .cover-hero { grid-template-columns: 1fr; }
+    .cover-art-wrap { max-width: 360px; }
+  }
 
   @media (max-width: 900px) {
     .stage[data-layout="equal"] { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
@@ -563,8 +809,8 @@
   <!-- ============ HEADER ============ -->
   <header class="header">
     <div class="brand">
-      <div class="brand-mark"></div>
-      Duetto
+      DUETTO
+      <span class="brand-tagline">real-time piano duet</span>
     </div>
 
     <div class="connection">
@@ -578,6 +824,17 @@
     </div>
 
     <div class="status">
+      <label class="sound-picker" title="Choose the instrument sound">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 18V5l12-2v13"/>
+          <circle cx="6" cy="18" r="3"/>
+          <circle cx="18" cy="16" r="3"/>
+        </svg>
+        <select id="soundSelect">
+          <option value="piano">Grand Piano</option>
+          <option value="epiano">Rhodes EP</option>
+        </select>
+      </label>
       <button class="toggle-switch on" id="keysToggle" title="Show or hide the keyboard displays" aria-pressed="true">
         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="6" width="20" height="12" rx="1"/>
@@ -597,7 +854,10 @@
         <span class="dot" id="peerDot"></span>
         <span id="peerStatus">Offline</span>
       </div>
-      <div class="status-pill" id="latencyPill" style="display:none">
+      <div class="status-pill" id="audioLatencyPill" style="display:none" title="The browser's reported audio output buffer — the irreducible floor for live MIDI latency on this machine.">
+        <span id="audioLatencyText">— ms audio</span>
+      </div>
+      <div class="status-pill" id="latencyPill" style="display:none" title="Network round-trip time over the data channel.">
         <span id="latencyText">— ms</span>
       </div>
     </div>
@@ -618,7 +878,10 @@
       </div>
       <div class="piano-wrap you">
         <div class="piano-header">
-          <span class="swatch"></span><span class="who">You</span>
+          <span class="swatch"></span>
+          <span class="who">You</span>
+          <span class="sound-name" id="soundNameYou">Grand Piano</span>
+          <span class="sustain-pill" id="sustainPillYou">Sustain</span>
         </div>
         <div class="piano">
           <div class="piano-inner" id="pianoYou"></div>
@@ -642,7 +905,10 @@
       </div>
       <div class="piano-wrap them">
         <div class="piano-header">
-          <span class="swatch"></span><span class="who">Partner</span>
+          <span class="swatch"></span>
+          <span class="who">Partner</span>
+          <span class="sound-name" id="soundNameThem">Grand Piano</span>
+          <span class="sustain-pill" id="sustainPillThem">Sustain</span>
         </div>
         <div class="piano">
           <div class="piano-inner" id="pianoThem"></div>
@@ -654,23 +920,57 @@
 
 </div>
 
-<!-- ============ WELCOME MODAL ============ -->
+<!-- ============ INTRO POSTER ============ -->
 <div class="modal-backdrop" id="welcomeModal">
-  <div class="modal">
-    <h2>Welcome to Duetto</h2>
-    <p>Real-time piano lessons that actually feel real-time. Here's how it works:</p>
-    <ol>
-      <li>Plug in your USB-MIDI keyboard <em>before</em> opening this page (browsers detect MIDI on load).</li>
-      <li>Allow camera and microphone when prompted.</li>
-      <li>You'll get a short ID — share it with your partner. Or paste theirs and Connect.</li>
-      <li>Both of you play freely. Your notes light up in cyan, theirs in magenta.</li>
-    </ol>
-    <p style="font-size: 12px; color: var(--text-faint);">
-      Works best in Chrome or Edge on a wired internet connection. Web MIDI is not supported in Safari or Firefox.
-    </p>
-    <div class="modal-actions">
-      <button id="startBtn">Let's play</button>
+  <div class="cover">
+
+    <!-- Top bar: wordmark + system label -->
+    <div class="cover-top">
+      <div class="cover-wordmark">DUETTO</div>
+      <div class="cover-sublabel">REAL-TIME PIANO DUET <span>·</span> PROTOTYPE v0.4</div>
     </div>
+
+    <!-- Hero: abstract music figure + editorial headline -->
+    <div class="cover-hero">
+
+      <div class="cover-art-wrap">
+        <svg class="cover-art" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet">
+          <path id="lissajousA" d="" fill="none" stroke-width="1.4"/>
+          <path id="lissajousB" d="" fill="none" stroke-width="1.4" stroke-dasharray="2 3"/>
+        </svg>
+      </div>
+
+      <div class="cover-body">
+        <h2 class="cover-title">
+          Two pianists.<br>
+          One <span class="ital">duet</span>.<br>
+          <span class="mark">No latency.</span>
+        </h2>
+
+        <p class="cover-lede">
+          A real-time piano lesson tool for musicians with MIDI keyboards.
+          We ship note events instead of audio across the wire, so what your
+          partner plays arrives in milliseconds — rendered locally on your
+          machine through a real piano sample library.
+        </p>
+
+        <pre class="cover-code">// WHEN YOU PRESS A KEY:
+<span class="dim">[</span>note 60<span class="dim">]</span> ─► <span class="accent">data channel</span> ─► partner's browser
+       <span class="dim">~ 30 ms</span>          renders locally</pre>
+      </div>
+
+    </div>
+
+    <!-- Footer: requirements + CTA -->
+    <div class="cover-foot">
+      <div class="cover-meta">
+        CHROME / EDGE ONLY <span>·</span> MIDI KEYBOARD REQUIRED <span>·</span> CAMERA &amp; MIC ACCESS
+      </div>
+      <button id="startBtn" class="cover-cta">
+        BEGIN <span class="arrow">→</span>
+      </button>
+    </div>
+
   </div>
 </div>
 
@@ -690,6 +990,30 @@
    ========================================================= */
 
 const $ = (id) => document.getElementById(id);
+
+// ---- Cover art: draw two interlocking Lissajous figures ----
+// A Lissajous curve traces (sin(a·t), sin(b·t)) — geometrically, it's the
+// shape that emerges when two musical frequencies are plotted against each
+// other. Different ratios produce different figures. We draw two at slightly
+// different ratios so they trace each other like a duet.
+function drawCover() {
+  const draw = (id, ratio, phase, steps = 360) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cx = 150, cy = 150, r = 115;
+    const pts = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = (i / steps) * Math.PI * 2;
+      const x = cx + r * Math.sin(ratio[0] * t + phase);
+      const y = cy + r * Math.sin(ratio[1] * t);
+      pts.push(`${x.toFixed(2)},${y.toFixed(2)}`);
+    }
+    el.setAttribute('d', 'M ' + pts.join(' L '));
+  };
+  draw('lissajousA', [3, 2], Math.PI / 2);
+  draw('lissajousB', [5, 4], Math.PI / 3);
+}
+drawCover();
 
 // ---- Globals ----
 let peer = null;          // PeerJS instance
@@ -801,49 +1125,240 @@ function fitPianos() {
   });
 }
 
-// Refit on window resize (debounced)
-let _resizeTimer;
-window.addEventListener('resize', () => {
-  clearTimeout(_resizeTimer);
-  _resizeTimer = setTimeout(fitPianos, 80);
-});
+// Refit on window resize — use rAF so the piano scales in lockstep with the
+// browser's own layout work, instead of a chunky debounced timeout.
+let _resizeRAF = null;
+function scheduleFit() {
+  if (_resizeRAF) return;
+  _resizeRAF = requestAnimationFrame(() => {
+    _resizeRAF = null;
+    fitPianos();
+  });
+}
+window.addEventListener('resize', scheduleFit);
 
-// ---- Tone.js: create two samplers (so you can visually distinguish, optionally pan) ----
-async function initSynths() {
-  // Salamander Grand Piano samples — free, beautiful, hosted by Tone.js team
-  const samples = {
-    'A0':'A0.mp3','C1':'C1.mp3','D#1':'Ds1.mp3','F#1':'Fs1.mp3','A1':'A1.mp3',
-    'C2':'C2.mp3','D#2':'Ds2.mp3','F#2':'Fs2.mp3','A2':'A2.mp3',
-    'C3':'C3.mp3','D#3':'Ds3.mp3','F#3':'Fs3.mp3','A3':'A3.mp3',
-    'C4':'C4.mp3','D#4':'Ds4.mp3','F#4':'Fs4.mp3','A4':'A4.mp3',
-    'C5':'C5.mp3','D#5':'Ds5.mp3','F#5':'Fs5.mp3','A5':'A5.mp3',
-    'C6':'C6.mp3','D#6':'Ds6.mp3','F#6':'Fs6.mp3','A6':'A6.mp3',
-    'C7':'C7.mp3','D#7':'Ds7.mp3','F#7':'Fs7.mp3','A7':'A7.mp3','C8':'C8.mp3'
+// Also re-fit whenever any .piano element changes size (e.g. layout transitions,
+// the keyboard toggle expanding, or the column flex re-balancing on resize).
+// ResizeObserver is widely supported in modern Chromium.
+if (typeof ResizeObserver !== 'undefined') {
+  const ro = new ResizeObserver(scheduleFit);
+  // We hook it up after the keyboards are built; see initialization below.
+  window.__attachPianoObserver = () => {
+    document.querySelectorAll('.piano').forEach(p => ro.observe(p));
   };
-  const baseUrl = 'https://tonejs.github.io/audio/salamander/';
+}
 
-  synthYou  = new Tone.Sampler({ urls: samples, baseUrl }).toDestination();
-  synthThem = new Tone.Sampler({ urls: samples, baseUrl }).toDestination();
+// Pre-compute MIDI-note → name strings once at startup, so the hot path
+// (every MIDI keypress) doesn't pay the cost of Tone.Frequency conversion.
+const NOTE_NAME_CACHE = {};
+function buildNoteCache() {
+  for (let n = FIRST_NOTE; n <= LAST_NOTE; n++) {
+    NOTE_NAME_CACHE[n] = Tone.Frequency(n, 'midi').toNote();
+  }
+}
 
-  // Wait for samples to load before allowing playback (no audible glitch on first key)
-  await Tone.loaded();
+// ---- Tone.js: audio chain = [voice (synth + per-preset effects)] → reverb → speakers ----
+// A single shared reverb sits between the voices and the output. Even a small
+// amount of room makes the piano sound dramatically less "in a box."
+let reverb = null;
+
+// Per-player current sound IDs. Each player picks their own; the other side
+// is told via the data channel so its synthThem matches what its partner is
+// playing. Default: both start on piano.
+let currentSoundIdYou  = 'piano';
+let currentSoundIdThem = 'piano';
+
+// A Voice wraps a synth plus any per-preset effects so we can dispose the
+// whole chain cleanly when switching sounds.
+class Voice {
+  constructor(synth, effects = []) {
+    this.synth = synth;
+    this.effects = effects;
+  }
+  triggerAttack(...a)  { return this.synth.triggerAttack(...a); }
+  triggerRelease(...a) { return this.synth.triggerRelease(...a); }
+  connect(dest) {
+    if (this.effects.length) this.synth.chain(...this.effects, dest);
+    else this.synth.connect(dest);
+    return this;
+  }
+  dispose() {
+    try { this.synth.dispose(); } catch(e){}
+    this.effects.forEach(fx => { try { fx.dispose(); } catch(e){} });
+  }
+}
+
+// Salamander Grand Piano sample manifest (used by the 'piano' preset)
+const SALAMANDER_URLS = {
+  'A0':'A0.mp3','C1':'C1.mp3','D#1':'Ds1.mp3','F#1':'Fs1.mp3','A1':'A1.mp3',
+  'C2':'C2.mp3','D#2':'Ds2.mp3','F#2':'Fs2.mp3','A2':'A2.mp3',
+  'C3':'C3.mp3','D#3':'Ds3.mp3','F#3':'Fs3.mp3','A3':'A3.mp3',
+  'C4':'C4.mp3','D#4':'Ds4.mp3','F#4':'Fs4.mp3','A4':'A4.mp3',
+  'C5':'C5.mp3','D#5':'Ds5.mp3','F#5':'Fs5.mp3','A5':'A5.mp3',
+  'C6':'C6.mp3','D#6':'Ds6.mp3','F#6':'Fs6.mp3','A6':'A6.mp3',
+  'C7':'C7.mp3','D#7':'Ds7.mp3','F#7':'Fs7.mp3','A7':'A7.mp3','C8':'C8.mp3'
+};
+
+const SOUND_PRESETS = {
+  piano: {
+    name: 'Grand Piano',
+    needsLoading: true,
+    factory: () => new Voice(new Tone.Sampler({
+      urls: SALAMANDER_URLS,
+      baseUrl: 'https://tonejs.github.io/audio/salamander/',
+      release: 1
+    }))
+  },
+  // Vintage Rhodes (Mark I-ish). Real Rhodes pianos are essentially:
+  //   - a struck metal tine (high-harmonic-content transient)
+  //   - a pickup mellowed by passive electronics
+  //   - stereo tremolo (the classic wobble)
+  // FM synthesis nails the tine character; we add a Tremolo for the wobble.
+  epiano: {
+    name: 'Rhodes EP',
+    needsLoading: false,
+    factory: () => {
+      const synth = new Tone.PolySynth(Tone.FMSynth, {
+        harmonicity: 14,            // metallic tine ratio
+        modulationIndex: 7,         // FM depth — controls "bite"
+        oscillator: { type: 'sine' },
+        envelope: {
+          attack: 0.001,           // immediate hammer strike
+          decay: 2.6,              // long natural decay
+          sustain: 0.18,           // mostly decays out
+          release: 1.2
+        },
+        modulation: { type: 'sine' },
+        modulationEnvelope: {
+          attack: 0.001,
+          decay: 0.45,             // tine bell fades fast → warm tone remains
+          sustain: 0,
+          release: 0.1
+        }
+      });
+      const tremolo = new Tone.Tremolo({
+        frequency: 4.5,            // classic Rhodes tremolo rate
+        depth: 0.35,
+        spread: 180                // stereo ping-pong
+      }).start();
+      // Longer delay time + lower wet keeps the chorus from generating
+      // buzzy artifacts when stacked with the master reverb.
+      const chorus = new Tone.Chorus({ frequency: 1.2, delayTime: 8, depth: 0.5, wet: 0.12 }).start();
+      return new Voice(synth, [chorus, tremolo]);
+    }
+  },
+};
+
+let masterLimiter = null;
+
+async function initSynths() {
+  // Master chain: [synths] → reverb → limiter → speakers.
+  // The limiter (-3 dBFS ceiling) prevents clipping when both players' voices
+  // stack with sustain. Clipping is the #1 cause of audible buzz/grit.
+  masterLimiter = new Tone.Limiter(-3).toDestination();
+  reverb = new Tone.Reverb({ decay: 1.8, preDelay: 0.01, wet: 0.18 }).connect(masterLimiter);
+  await reverb.generate();
+
+  // Both synths start on piano; partner's will update once they tell us.
+  await loadSound('piano', 'you');
+  await loadSound('piano', 'them');
+}
+
+// Swap one player's synth to a different preset.
+// `who` = 'you' (your own playing) or 'them' (your partner's playing,
+// rendered locally based on incoming MIDI events over the data channel).
+async function loadSound(id, who) {
+  const preset = SOUND_PRESETS[id];
+  if (!preset) return;
+
+  if (who === 'you') {
+    if (synthYou) synthYou.dispose();
+    synthYou = preset.factory().connect(reverb);
+    currentSoundIdYou = id;
+    updateSoundLabel('you', preset.name);
+  } else {
+    if (synthThem) synthThem.dispose();
+    synthThem = preset.factory().connect(reverb);
+    currentSoundIdThem = id;
+    updateSoundLabel('them', preset.name);
+  }
+
+  if (preset.needsLoading) await Tone.loaded();
+}
+
+// Reflect the chosen sound in each player's piano header
+function updateSoundLabel(who, name) {
+  const el = document.getElementById(who === 'you' ? 'soundNameYou' : 'soundNameThem');
+  if (el) el.textContent = name;
+}
+
+// Convert raw MIDI velocity (0–127) into a perceptually nicer curve.
+// Pow > 1 = soft hits get softer, hard hits stay loud — more dynamic range.
+function curveVelocity(v) {
+  return Math.pow(v / 127, 1.6);
+}
+
+// ---- Sustain pedal state (CC 64) ----
+// When the pedal is down, note-off events are deferred. The set of sustained
+// notes is released the moment the pedal lifts. State is tracked per-player
+// because either player can hold the pedal independently.
+const pedalState = {
+  you:  { down: false, sustained: new Set() },
+  them: { down: false, sustained: new Set() }
+};
+
+function applyPedal(isDown, who) {
+  const state = pedalState[who];
+  if (state.down === isDown) return;
+  state.down = isDown;
+
+  if (!isDown) {
+    // Pedal just released — actually release all sustained notes
+    const synth = (who === 'you') ? synthYou : synthThem;
+    if (synth) {
+      state.sustained.forEach(note => {
+        const name = NOTE_NAME_CACHE[note];
+        if (name) synth.triggerRelease(name);
+      });
+    }
+    state.sustained.clear();
+  }
+
+  // Toggle the visual sustain indicator
+  const el = document.getElementById(who === 'you' ? 'sustainPillYou' : 'sustainPillThem');
+  if (el) el.classList.toggle('on', isDown);
 }
 
 function playNote(note, velocity, who) {
   const synth = (who === 'you') ? synthYou : synthThem;
   if (!synth) return;
-  // Velocity 0 in MIDI = note off (sometimes); we treat as release
+  const name = NOTE_NAME_CACHE[note];
+  if (!name) return;
+
+  // If this note was being sustained from a previous release-with-pedal,
+  // clear the marker so the new attack starts a fresh "life" for the note.
+  pedalState[who].sustained.delete(note);
+
   if (velocity === 0) {
-    synth.triggerRelease(Tone.Frequency(note, 'midi').toNote());
+    synth.triggerRelease(name);
   } else {
-    synth.triggerAttack(Tone.Frequency(note, 'midi').toNote(), undefined, velocity / 127);
+    synth.triggerAttack(name, undefined, curveVelocity(velocity));
   }
 }
 
 function releaseNote(note, who) {
   const synth = (who === 'you') ? synthYou : synthThem;
   if (!synth) return;
-  synth.triggerRelease(Tone.Frequency(note, 'midi').toNote());
+  const name = NOTE_NAME_CACHE[note];
+  if (!name) return;
+
+  // If the sustain pedal is held, don't actually release —
+  // park the note in the sustained set until the pedal lifts.
+  if (pedalState[who].down) {
+    pedalState[who].sustained.add(note);
+    return;
+  }
+  synth.triggerRelease(name);
 }
 
 // ---- Web MIDI: capture local keyboard input ----
@@ -880,13 +1395,18 @@ async function initMidi() {
 }
 
 function onMidiMessage(e) {
-  const [status, note, velocity] = e.data;
+  const [status, data1, data2] = e.data;
   const cmd = status & 0xf0;
   // 0x90 = note on, 0x80 = note off
-  if (cmd === 0x90 && velocity > 0) {
-    handleLocalNote(note, velocity, true);
-  } else if (cmd === 0x80 || (cmd === 0x90 && velocity === 0)) {
-    handleLocalNote(note, 0, false);
+  if (cmd === 0x90 && data2 > 0) {
+    handleLocalNote(data1, data2, true);
+  } else if (cmd === 0x80 || (cmd === 0x90 && data2 === 0)) {
+    handleLocalNote(data1, 0, false);
+  }
+  // 0xB0 = control change. CC 64 = damper / sustain pedal.
+  // Values 0–63 = pedal up, 64–127 = pedal down (standard MIDI convention).
+  else if (cmd === 0xB0 && data1 === 64) {
+    handleLocalPedal(data2 >= 64);
   }
 }
 
@@ -904,6 +1424,15 @@ function handleLocalNote(note, velocity, isOn) {
   }
 }
 
+function handleLocalPedal(isDown) {
+  // 1. Apply locally to YOUR synth
+  applyPedal(isDown, 'you');
+  // 2. Tell partner so their synthThem (which renders your notes) sustains correctly
+  if (conn && conn.open) {
+    conn.send({ t: 'pedal', d: isDown });
+  }
+}
+
 // ---- Handle MIDI events arriving from the partner ----
 function handleRemoteEvent(msg) {
   if (msg.t === 'on') {
@@ -918,6 +1447,13 @@ function handleRemoteEvent(msg) {
     const rtt = performance.now() - msg.ts;
     $('latencyPill').style.display = 'inline-flex';
     $('latencyText').textContent = Math.round(rtt) + ' ms RTT';
+  } else if (msg.t === 'sound') {
+    // Partner switched their instrument — update OUR synthThem so when their
+    // future notes arrive, we render them in the right voice.
+    loadSound(msg.id, 'them');
+  } else if (msg.t === 'pedal') {
+    // Partner pressed or released their sustain pedal
+    applyPedal(!!msg.d, 'them');
   }
 }
 
@@ -958,6 +1494,10 @@ function setupDataConnection(c) {
     $('peerDot').className = 'dot ok';
     $('peerStatus').textContent = 'Connected';
     toast('Connected to ' + conn.peer, 'success');
+
+    // Tell the partner which instrument we're currently playing,
+    // so their synthThem renders our notes in the right voice from the start.
+    conn.send({ t: 'sound', id: currentSoundIdYou });
 
     // Start RTT pinging
     if (pingInterval) clearInterval(pingInterval);
@@ -1030,11 +1570,34 @@ function connectToPeer() {
 $('startBtn').addEventListener('click', async () => {
   $('welcomeModal').style.display = 'none';
 
-  // Tone.js requires a user gesture before starting the audio context
+  // Tone.js requires a user gesture before starting the audio context.
+  // Configure for the LOWEST possible latency before we start — by default
+  // Tone schedules ~100ms ahead, which is fine for sequenced playback but
+  // adds perceptible delay for live MIDI input.
+  Tone.setContext(new Tone.Context({
+    latencyHint: 'interactive',
+    lookAhead: 0
+  }));
   await Tone.start();
+  // Belt-and-braces: also set lookAhead on whatever context is now active
+  Tone.context.lookAhead = 0;
 
   toast('Loading piano samples…');
   await initSynths();
+  buildNoteCache();
+
+  // Surface the browser's own audio output latency so you can see the floor.
+  // baseLatency = AudioContext's intrinsic buffering, outputLatency = system buffer.
+  try {
+    const ctx = Tone.context.rawContext || Tone.context;
+    const base = (ctx.baseLatency || 0) * 1000;
+    const out  = (ctx.outputLatency || 0) * 1000;
+    const total = Math.round(base + out);
+    if (total > 0) {
+      $('audioLatencyPill').style.display = 'inline-flex';
+      $('audioLatencyText').textContent = `${total} ms audio`;
+    }
+  } catch (e) { /* not all browsers report this */ }
 
   await Promise.all([initLocalMedia(), initMidi()]);
 
@@ -1042,6 +1605,7 @@ $('startBtn').addEventListener('click', async () => {
   buildKeyboards();
   setLayout('equal');
   fitPianos();
+  if (window.__attachPianoObserver) window.__attachPianoObserver();
   toast('Ready to play', 'success');
 });
 
@@ -1077,6 +1641,18 @@ $('myIdBadge').addEventListener('click', () => {
   if (id && id !== '…') {
     navigator.clipboard.writeText(id);
     toast('ID copied', 'success');
+  }
+});
+
+// ---- Sound preset picker (per-player) ----
+// Changing your picker swaps YOUR synth (which plays your local notes) and
+// broadcasts the change to your partner so their synthThem (which plays your
+// remote notes on their machine) switches in lockstep.
+$('soundSelect').addEventListener('change', async (e) => {
+  const id = e.target.value;
+  await loadSound(id, 'you');
+  if (conn && conn.open) {
+    conn.send({ t: 'sound', id });
   }
 });
 
